@@ -1,0 +1,71 @@
+FRC MATLAB Control Library - Project Structure
+================================================
+
+frc-matlab-control-library/
+│
+├── README.md                          Main project overview
+├── LICENSE                            MIT License
+├── CHANGELOG.md                       Version history
+├── CONTRIBUTING.md                    Contribution guidelines
+├── startup.m                          Initialization script (RUN THIS FIRST!)
+├── .gitignore                         Git ignore rules
+│
+├── src/                               Source code
+│   ├── motors/                        Motor models
+│   │   ├── KrakenX40Model.m           Kraken X40 specifications
+│   │   ├── KrakenX60Model.m           Kraken X60 specifications
+│   │   └── MotorCharacteristics.m     Generic motor model
+│   │
+│   ├── templates/                     Mechanism templates
+│   │   ├── SimpleRotationalMechanism.m  Turrets, arms, intakes
+│   │   ├── ElevatorMechanism.m          Vertical lifts
+│   │   ├── FlywheelMechanism.m          Shooters, flywheels
+│   │   ├── SwerveDriveSystem.m          Complete swerve drive
+│   │   └── SwerveModuleModel.m          Individual swerve module
+│   │
+│   ├── control/                       Controller synthesis
+│   │   ├── PIDTuner.m                 Auto PID tuning
+│   │   ├── FeedforwardCalculator.m    FF gain calculation
+│   │   └── MotionMagicOptimizer.m     Motion profiles
+│   │
+│   ├── simulation/                    Physics simulation
+│   │   ├── DynamicsSimulator.m        Main simulation engine
+│   │   └── PerformanceValidator.m     Basic validation
+│   │
+│   ├── system_id/                     System identification
+│   │   ├── AutomatedTestSequences.m   Test signal generation
+│   │   ├── ParameterExtraction.m      Extract parameters
+│   │   └── ModelValidation.m          Validate models
+│   │
+│   └── plugins/                       Visualization & validation
+│       ├── VisualizationSystem.m      Plugin registry (core)
+│       ├── BuiltinVisualizations.m    7 standard plots
+│       ├── BuiltinValidators.m        4 standard validators
+│       └── VisualizationSystemInit.m  Auto initialization
+│
+├── examples/                          Working examples
+│   ├── Example_SimpleTurret_v2.0.m    Basic turret example
+│   └── Example_Using_Plugin_System.m  Complete feature demo
+│
+└── docs/                              Documentation
+    ├── GETTING_STARTED.md             Step-by-step tutorial
+    ├── API_REFERENCE.md               Function documentation
+    └── ARCHITECTURE.md                System design guide
+
+
+QUICK START
+-----------
+1. Open MATLAB
+2. cd /path/to/frc-matlab-control-library
+3. Run: startup
+4. Try: Example_SimpleTurret_v2_0
+
+TOTAL FILES
+-----------
+Source code:     23 MATLAB files
+Documentation:   7 markdown files  
+Examples:        2 example scripts
+Configuration:   3 files (startup, gitignore, license)
+
+VERSION: 2.0.0
+LICENSE: MIT

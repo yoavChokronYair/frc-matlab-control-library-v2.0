@@ -1,0 +1,44 @@
+# MATLAB
+*.asv
+*.m~
+*.mex*
+*.mat
+*.slxc
+*.autosave
+
+# Simulink
+*.slxc
+slprj/
+*.slxc
+
+# Code generation
+codegen/
+
+# MATLAB App Designer
+*.mlapp~
+
+# Build artifacts
+*.o
+*.so
+*.dylib
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# Logs
+*.log
+
+# Temporary files
+temp/
+tmp/
+
+# User-specific files
+*.user

@@ -1,0 +1,325 @@
+classdef VisualizationSystem < handle
+    % Extensible visualization and validation plugin system
+    % Allows adding visualization/validation features without modifying core classes
+    %
+    % This system provides a plugin-based architecture where visualization and
+    % validation tools are registered and can be applied to simulation results
+    % without requiring changes to the simulation engine or mechanism classes.
+    
+    properties (Constant)
+        VERSION = '2.0'
+        PLUGIN_REGISTRY_FILE = 'visualization_plugins.mat'
+    end
+    
+    properties (Access = private, Static)
+        plugins = containers.Map()
+        validators = containers.Map()
+        reporters = containers.Map()
+    end
+    
+    methods (Static)
+        % ===== PLUGIN REGISTRATION =====
+        
+        function registerVisualization(pluginName, functionHandle, description)
+            % Register a visualization function
+            %
+            % Usage:
+            %   VisualizationSystem.registerVisualization('myPlot', @myPlotFunction, ...
+            %       'Plots my custom visualization')
+            %
+            % Function signature:
+            %   function myPlotFunction(simData, varargin)
+            %       % simData: simulation results struct
+            %       % varargin: optional parameters
+            %   end
+            
+            pluginInfo.handle = functionHandle;
+            pluginInfo.description = description;
+            pluginInfo.type = 'visualization';
+            pluginInfo.registered = datetime('now');
+            
+            VisualizationSystem.plugins(pluginName) = pluginInfo;
+            fprintf('[VisualizationSystem] Registered visualization: %s\n', pluginName);
+        end
+        
+        function registerValidator(validatorName, functionHandle, description)
+            % Register a validation function
+            %
+            % Usage:
+            %   VisualizationSystem.registerValidator('myValidation', @myValidationFunc, ...
+            %       'Validates my custom metrics')
+            %
+            % Function signature:
+            %   function results = myValidationFunc(simData, mechanism, varargin)
+            %       % simData: simulation results
+            %       % mechanism: mechanism object
+            %       % results: struct with validation results
+            %   end
+            
+            validatorInfo.handle = functionHandle;
+            validatorInfo.description = description;
+            validatorInfo.type = 'validator';
+            validatorInfo.registered = datetime('now');
+            
+            VisualizationSystem.validators(validatorName) = validatorInfo;
+            fprintf('[VisualizationSystem] Registered validator: %s\n', validatorName);
+        end
+        
+        function registerReporter(reporterName, functionHandle, description)
+            % Register a report generator function
+            %
+            % Usage:
+            %   VisualizationSystem.registerReporter('myReport', @myReportFunc, ...
+            %       'Generates my custom report')
+            %
+            % Function signature:
+            %   function reportText = myReportFunc(results, varargin)
+            %       % results: validation/analysis results
+            %       % reportText: cell array of report lines
+            %   end
+            
+            reporterInfo.handle = functionHandle;
+            reporterInfo.description = description;
+            reporterInfo.type = 'reporter';
+            reporterInfo.registered = datetime('now');
+            
+            VisualizationSystem.reporters(reporterName) = reporterInfo;
+            fprintf('[VisualizationSystem] Registered reporter: %s\n', reporterName);
+        end
+        
+        % ===== PLUGIN DISCOVERY =====
+        
+        function list = listVisualizations()
+            % List all registered visualizations
+            list = keys(VisualizationSystem.plugins);
+        end
+        
+        function list = listValidators()
+            % List all registered validators
+            list = keys(VisualizationSystem.validators);
+        end
+        
+        function list = listReporters()
+            % List all registered reporters
+            list = keys(VisualizationSystem.reporters);
+        end
+        
+        function info = getVisualizationInfo(name)
+            % Get info about a visualization
+            if VisualizationSystem.plugins.isKey(name)
+                info = VisualizationSystem.plugins(name);
+            else
+                error('Visualization "%s" not registered', name);
+            end
+        end
+        
+        function info = getValidatorInfo(name)
+            % Get info about a validator
+            if VisualizationSystem.validators.isKey(name)
+                info = VisualizationSystem.validators(name);
+            else
+                error('Validator "%s" not registered', name);
+            end
+        end
+        
+        % ===== PLUGIN EXECUTION =====
+        
+        function runVisualization(pluginName, simData, varargin)
+            % Execute a registered visualization
+            %
+            % Usage:
+            %   VisualizationSystem.runVisualization('myPlot', simData);
+            %   VisualizationSystem.runVisualization('myPlot', simData, 'param1', value1);
+            
+            if ~VisualizationSystem.plugins.isKey(pluginName)
+                error('Visualization "%s" not registered. Available: %s', ...
+                    pluginName, strjoin(VisualizationSystem.listVisualizations(), ', '));
+            end
+            
+            plugin = VisualizationSystem.plugins(pluginName);
+            try
+                plugin.handle(simData, varargin{:});
+            catch ME
+                fprintf('[ERROR] Visualization "%s" failed:\n', pluginName);
+                rethrow(ME);
+            end
+        end
+        
+        function results = runValidator(validatorName, simData, mechanism, varargin)
+            % Execute a registered validator
+            %
+            % Usage:
+            %   results = VisualizationSystem.runValidator('myValidation', simData, mechanism);
+            %   results = VisualizationSystem.runValidator('myValidation', simData, mechanism, ...
+            %       'param1', value1);
+            
+            if ~VisualizationSystem.validators.isKey(validatorName)
+                error('Validator "%s" not registered. Available: %s', ...
+                    validatorName, strjoin(VisualizationSystem.listValidators(), ', '));
+            end
+            
+            validator = VisualizationSystem.validators(validatorName);
+            try
+                results = validator.handle(simData, mechanism, varargin{:});
+            catch ME
+                fprintf('[ERROR] Validator "%s" failed:\n', validatorName);
+                rethrow(ME);
+            end
+        end
+        
+        function report = runReporter(reporterName, results, varargin)
+            % Execute a registered reporter
+            %
+            % Usage:
+            %   report = VisualizationSystem.runReporter('myReport', results);
+            %   report = VisualizationSystem.runReporter('myReport', results, 'param1', value1);
+            
+            if ~VisualizationSystem.reporters.isKey(reporterName)
+                error('Reporter "%s" not registered. Available: %s', ...
+                    reporterName, strjoin(VisualizationSystem.listReporters(), ', '));
+            end
+            
+            reporter = VisualizationSystem.reporters(reporterName);
+            try
+                report = reporter.handle(results, varargin{:});
+            catch ME
+                fprintf('[ERROR] Reporter "%s" failed:\n', reporterName);
+                rethrow(ME);
+            end
+        end
+        
+        % ===== BATCH OPERATIONS =====
+        
+        function results = runAllValidators(simData, mechanism, varargin)
+            % Run all registered validators on simulation data
+            %
+            % Output:
+            %   results: struct with field for each validator
+            
+            results = struct();
+            validators = VisualizationSystem.listValidators();
+            
+            for i = 1:length(validators)
+                name = validators{i};
+                try
+                    results.(name) = VisualizationSystem.runValidator(name, simData, mechanism, varargin{:});
+                    fprintf('✓ Validator "%s" completed\n', name);
+                catch ME
+                    fprintf('✗ Validator "%s" failed: %s\n', name, ME.message);
+                    results.(name) = [];
+                end
+            end
+        end
+        
+        function plotAllVisualizations(simData, varargin)
+            % Run all registered visualizations on simulation data
+            
+            visualizations = VisualizationSystem.listVisualizations();
+            
+            for i = 1:length(visualizations)
+                name = visualizations{i};
+                try
+                    VisualizationSystem.runVisualization(name, simData, varargin{:});
+                    fprintf('✓ Visualization "%s" completed\n', name);
+                catch ME
+                    fprintf('✗ Visualization "%s" failed: %s\n', name, ME.message);
+                end
+            end
+        end
+        
+        % ===== PLUGIN PERSISTENCE =====
+        
+        function savePluginRegistry(filename)
+            % Save registered plugins to file
+            
+            if nargin < 1
+                filename = VisualizationSystem.PLUGIN_REGISTRY_FILE;
+            end
+            
+            plugins = VisualizationSystem.plugins;
+            validators = VisualizationSystem.validators;
+            reporters = VisualizationSystem.reporters;
+            
+            save(filename, 'plugins', 'validators', 'reporters');
+            fprintf('Plugin registry saved to: %s\n', filename);
+        end
+        
+        function loadPluginRegistry(filename)
+            % Load registered plugins from file
+            
+            if nargin < 1
+                filename = VisualizationSystem.PLUGIN_REGISTRY_FILE;
+            end
+            
+            if isfile(filename)
+                load(filename, 'plugins', 'validators', 'reporters');
+                VisualizationSystem.plugins = plugins;
+                VisualizationSystem.validators = validators;
+                VisualizationSystem.reporters = reporters;
+                fprintf('Plugin registry loaded from: %s\n', filename);
+            else
+                fprintf('Warning: Plugin registry file not found: %s\n', filename);
+            end
+        end
+        
+        % ===== UTILITY =====
+        
+        function printRegistry()
+            % Print all registered plugins
+            
+            fprintf('\n');
+            fprintf('====================================\n');
+            fprintf('Visualization Plugin Registry\n');
+            fprintf('====================================\n\n');
+            
+            % Visualizations
+            if ~VisualizationSystem.plugins.isempty()
+                fprintf('VISUALIZATIONS:\n');
+                for name = VisualizationSystem.listVisualizations()
+                    info = VisualizationSystem.plugins(name{1});
+                    fprintf('  • %s\n', name{1});
+                    fprintf('    └─ %s\n', info.description);
+                end
+                fprintf('\n');
+            else
+                fprintf('VISUALIZATIONS: (none registered)\n\n');
+            end
+            
+            % Validators
+            if ~VisualizationSystem.validators.isempty()
+                fprintf('VALIDATORS:\n');
+                for name = VisualizationSystem.listValidators()
+                    info = VisualizationSystem.validators(name{1});
+                    fprintf('  • %s\n', name{1});
+                    fprintf('    └─ %s\n', info.description);
+                end
+                fprintf('\n');
+            else
+                fprintf('VALIDATORS: (none registered)\n\n');
+            end
+            
+            % Reporters
+            if ~VisualizationSystem.reporters.isempty()
+                fprintf('REPORTERS:\n');
+                for name = VisualizationSystem.listReporters()
+                    info = VisualizationSystem.reporters(name{1});
+                    fprintf('  • %s\n', name{1});
+                    fprintf('    └─ %s\n', info.description);
+                end
+                fprintf('\n');
+            else
+                fprintf('REPORTERS: (none registered)\n\n');
+            end
+            
+            fprintf('====================================\n\n');
+        end
+        
+        function unregisterAll()
+            % Clear all registered plugins (for testing/reset)
+            VisualizationSystem.plugins = containers.Map();
+            VisualizationSystem.validators = containers.Map();
+            VisualizationSystem.reporters = containers.Map();
+            fprintf('[VisualizationSystem] All plugins unregistered\n');
+        end
+    end
+end
