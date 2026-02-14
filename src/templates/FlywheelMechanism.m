@@ -19,7 +19,7 @@ classdef FlywheelMechanism < handle
         viscousFriction
         
         % Targets
-        targetRPM
+        targetRPM   
         targetSpeed_rad_s
         
         % Controllers

@@ -1,297 +1,238 @@
 classdef BuiltinValidators
-    % Standard validation plugins for the system
+    % BUILTINVALIDATORS Standard validation functions
     %
-    % These are automatically registered in VisualizationSystemInit.m
+    % Collection of built-in validation methods for mechanism simulation
     
     methods (Static)
-        % ===== PERFORMANCE VALIDATION =====
         
         function results = validatePerformanceRequirements(simData, mechanism, varargin)
-            % Validate mechanism meets performance requirements
-            
-            p = inputParser();
-            addParameter(p, 'requirements', struct(), @isstruct);
-            parse(p, varargin{:});
-            
-            requirements = p.Results.requirements;
-            
-            fprintf('\n=== Performance Validation ===\n\n');
+            % Validates mechanism meets performance requirements
             
             results = struct();
-            results.mechanismName = mechanism.mechanismName;
-            results.timestamp = datetime('now');
-            results.allPassed = true;
-            
-            % Check maximum velocity
-            if isfield(requirements, 'maxVelocity_rad_s')
-                actualMaxVel = max(abs(simData.velocity));
-                reqMaxVel = requirements.maxVelocity_rad_s;
-                
-                passed = actualMaxVel >= reqMaxVel * 0.95;
-                results.maxVelocity.required = reqMaxVel;
-                results.maxVelocity.actual = actualMaxVel;
-                results.maxVelocity.passed = passed;
-                results.maxVelocity.margin = (actualMaxVel / reqMaxVel - 1) * 100;
-                
-                fprintf('Max Velocity:\n');
-                fprintf('  Required: %.2f rad/s\n', reqMaxVel);
-                fprintf('  Actual: %.2f rad/s\n', actualMaxVel);
-                fprintf('  Status: %s (%.1f%% margin)\n\n', ...
-                    BuiltinValidators.passFailStr(passed), ...
-                    results.maxVelocity.margin);
-                
-                if ~passed, results.allPassed = false; end
-            end
-            
-            % Check maximum acceleration
-            if isfield(requirements, 'maxAcceleration_rad_s2')
-                dt = mean(diff(simData.time));
-                accel = diff(simData.velocity) / dt;
-                actualMaxAccel = max(abs(accel));
-                reqMaxAccel = requirements.maxAcceleration_rad_s2;
-                
-                passed = actualMaxAccel >= reqMaxAccel * 0.90;
-                
-                results.maxAcceleration.required = reqMaxAccel;
-                results.maxAcceleration.actual = actualMaxAccel;
-                results.maxAcceleration.passed = passed;
-                results.maxAcceleration.margin = (actualMaxAccel / reqMaxAccel - 1) * 100;
-                
-                fprintf('Max Acceleration:\n');
-                fprintf('  Required: %.2f rad/s²\n', reqMaxAccel);
-                fprintf('  Actual: %.2f rad/s²\n', actualMaxAccel);
-                fprintf('  Status: %s (%.1f%% margin)\n\n', ...
-                    BuiltinValidators.passFailStr(passed), ...
-                    results.maxAcceleration.margin);
-                
-                if ~passed, results.allPassed = false; end
-            end
-            
-            % Check current limit
-            if isfield(simData, 'current')
-                maxCurrent = max(abs(simData.current));
-                currentLimit = mechanism.motorModel.MAX_CONTINUOUS_CURRENT_A;
-                
-                passed = maxCurrent <= currentLimit * 1.05;
-                
-                results.currentLimit.limit = currentLimit;
-                results.currentLimit.peak = maxCurrent;
-                results.currentLimit.passed = passed;
-                results.currentLimit.margin = (currentLimit / maxCurrent - 1) * 100;
-                
-                fprintf('Current Limit:\n');
-                fprintf('  Limit: %.0f A\n', currentLimit);
-                fprintf('  Peak: %.2f A\n', maxCurrent);
-                fprintf('  Status: %s (%.1f%% margin)\n\n', ...
-                    BuiltinValidators.passFailStr(passed), ...
-                    results.currentLimit.margin);
-                
-                if ~passed, results.allPassed = false; end
-            end
-            
-            % Overall
-            fprintf('========================================\n');
-            if results.allPassed
-                fprintf('OVERALL: ✓ PASS - All requirements met\n');
-            else
-                fprintf('OVERALL: ✗ FAIL - Some requirements not met\n');
-            end
-            fprintf('========================================\n\n');
-        end
-        
-        % ===== MODEL VALIDATION =====
-        
-        function results = validateModelAccuracy(simData, realData, varargin)
-            % Validate simulation matches real robot data
-            
-            p = inputParser();
-            addParameter(p, 'name', 'Mechanism', @ischar);
-            parse(p, varargin{:});
-            
-            fprintf('\n=== Model Validation ===\n\n');
-            
-            results = struct();
-            results.mechanismName = p.Results.name;
-            results.timestamp = datetime('now');
-            results.allPassed = true;
-            
-            % Interpolate real data to sim time base
-            realPos_interp = interp1(realData.time, realData.position, simData.time, 'linear');
-            realVel_interp = interp1(realData.time, realData.velocity, simData.time, 'linear');
-            
-            % Position validation
-            posError = simData.position - realPos_interp;
-            rmsePos = sqrt(mean(posError.^2));
-            maxErrorPos = max(abs(posError));
-            
-            % R² for position
-            ssRes = sum(posError.^2);
-            ssTot = sum((realPos_interp - mean(realPos_interp)).^2);
-            r2Pos = 1 - (ssRes / ssTot);
-            
-            results.position.rmse = rmsePos;
-            results.position.maxError = maxErrorPos;
-            results.position.r2 = r2Pos;
-            results.position.passed = r2Pos > 0.85;  % R² > 0.85 = acceptable
-            
-            fprintf('Position Validation:\n');
-            fprintf('  RMSE: %.4f rad (%.2f deg)\n', rmsePos, rmsePos * 180/pi);
-            fprintf('  Max Error: %.4f rad (%.2f deg)\n', maxErrorPos, maxErrorPos * 180/pi);
-            fprintf('  R²: %.4f (1.0 = perfect)\n');
-            fprintf('  Status: %s\n\n', BuiltinValidators.passFailStr(results.position.passed));
-            
-            if ~results.position.passed, results.allPassed = false; end
-            
-            % Velocity validation
-            velError = simData.velocity - realVel_interp;
-            rmseVel = sqrt(mean(velError.^2));
-            maxErrorVel = max(abs(velError));
-            
-            % R² for velocity
-            ssRes = sum(velError.^2);
-            ssTot = sum((realVel_interp - mean(realVel_interp)).^2);
-            r2Vel = 1 - (ssRes / ssTot);
-            
-            results.velocity.rmse = rmseVel;
-            results.velocity.maxError = maxErrorVel;
-            results.velocity.r2 = r2Vel;
-            results.velocity.passed = r2Vel > 0.85;
-            
-            fprintf('Velocity Validation:\n');
-            fprintf('  RMSE: %.4f rad/s\n', rmseVel);
-            fprintf('  Max Error: %.4f rad/s\n', maxErrorVel);
-            fprintf('  R²: %.4f (1.0 = perfect)\n');
-            fprintf('  Status: %s\n\n', BuiltinValidators.passFailStr(results.velocity.passed));
-            
-            if ~results.velocity.passed, results.allPassed = false; end
-            
-            % Overall assessment
-            fprintf('========================================\n');
-            if results.allPassed
-                fprintf('OVERALL: ✓ GOOD - Model is acceptable\n');
-            else
-                fprintf('OVERALL: ✗ NEEDS REFINEMENT\n');
-            end
-            fprintf('========================================\n\n');
-        end
-        
-        % ===== TRAJECTORY VALIDATION =====
-        
-        function results = validateTrajectory(simData, trajectory, varargin)
-            % Validate that simulated motion matches desired trajectory
-            
-            p = inputParser();
-            addParameter(p, 'tolerance', 0.1, @isnumeric);  % rad
-            parse(p, varargin{:});
-            
-            results = struct();
-            results.mechanismName = 'Trajectory Tracking';
+            results.testName = 'Performance Requirements';
             results.passed = true;
+            results.details = {};
             
-            % Interpolate trajectory to sim time
-            traj_interp = interp1(trajectory.time, trajectory.position, simData.time, 'linear');
+            % Extract requirements from mechanism if available
+            if isfield(mechanism, 'requirements')
+                req = mechanism.requirements;
+                
+                % Check max velocity
+                if isfield(req, 'maxVelocity')
+                    maxVel = max(abs(simData.velocity));
+                    results.maxVelocity = maxVel;
+                    if maxVel > req.maxVelocity
+                        results.passed = false;
+                        results.details{end+1} = sprintf('Max velocity %.3f m/s exceeds limit %.3f m/s', ...
+                            maxVel, req.maxVelocity);
+                    end
+                end
+                
+                % Check max acceleration
+                if isfield(req, 'maxAcceleration')
+                    if isfield(simData, 'acceleration')
+                        maxAccel = max(abs(simData.acceleration));
+                    else
+                        maxAccel = max(abs(diff(simData.velocity)./diff(simData.t)));
+                    end
+                    results.maxAcceleration = maxAccel;
+                    if maxAccel > req.maxAcceleration
+                        results.passed = false;
+                        results.details{end+1} = sprintf('Max acceleration %.3f m/s² exceeds limit %.3f m/s²', ...
+                            maxAccel, req.maxAcceleration);
+                    end
+                end
+                
+                % Check settling time
+                if isfield(req, 'settlingTime')
+                    finalPos = simData.position(end);
+                    settlingBand = 0.02 * abs(finalPos);
+                    settledIdx = find(abs(simData.position - finalPos) > settlingBand, 1, 'last');
+                    if ~isempty(settledIdx)
+                        settlingTime = simData.t(settledIdx);
+                        results.settlingTime = settlingTime;
+                        if settlingTime > req.settlingTime
+                            results.passed = false;
+                            results.details{end+1} = sprintf('Settling time %.3f s exceeds limit %.3f s', ...
+                                settlingTime, req.settlingTime);
+                        end
+                    end
+                end
+            else
+                results.details{end+1} = 'No requirements defined in mechanism';
+            end
             
-            % Track error
-            trackError = simData.position - traj_interp;
-            maxError = max(abs(trackError));
-            rmseError = sqrt(mean(trackError.^2));
-            
-            results.maxError = maxError;
-            results.rmseError = rmseError;
-            results.tolerance = p.Results.tolerance;
-            results.passed = maxError < p.Results.tolerance;
-            
-            fprintf('Trajectory Tracking Validation:\n');
-            fprintf('  Max Error: %.4f rad (tolerance: %.4f rad)\n', maxError, p.Results.tolerance);
-            fprintf('  RMS Error: %.4f rad\n', rmseError);
-            fprintf('  Status: %s\n\n', BuiltinValidators.passFailStr(results.passed));
+            if results.passed
+                fprintf('Performance Validation: PASSED\n');
+            else
+                fprintf('Performance Validation: FAILED\n');
+            end
         end
         
-        % ===== SAFETY VALIDATION =====
+        function results = validateModelAccuracy(simData, mechanism, realData, varargin)
+            % Validates simulation matches real robot data
+            
+            if nargin < 3 || isempty(realData)
+                error('Real robot data required for model accuracy validation');
+            end
+            
+            results = struct();
+            results.testName = 'Model Accuracy';
+            results.passed = true;
+            results.details = {};
+            
+            % Interpolate to common time base
+            t_common = linspace(max(simData.t(1), realData.t(1)), ...
+                min(simData.t(end), realData.t(end)), 100);
+            
+            sim_pos = interp1(simData.t, simData.position, t_common);
+            real_pos = interp1(realData.t, realData.position, t_common);
+            
+            sim_vel = interp1(simData.t, simData.velocity, t_common);
+            real_vel = interp1(realData.t, realData.velocity, t_common);
+            
+            % Calculate RMSE
+            results.positionRMSE = sqrt(mean((sim_pos - real_pos).^2));
+            results.velocityRMSE = sqrt(mean((sim_vel - real_vel).^2));
+            
+            % Calculate R²
+            results.positionR2 = 1 - sum((sim_pos - real_pos).^2) / sum((real_pos - mean(real_pos)).^2);
+            results.velocityR2 = 1 - sum((sim_vel - real_vel).^2) / sum((real_vel - mean(real_vel)).^2);
+            
+            % Set thresholds
+            posThreshold = 0.01;  % 1 cm
+            velThreshold = 0.05;  % 5 cm/s
+            R2Threshold = 0.95;
+            
+            if results.positionRMSE > posThreshold
+                results.passed = false;
+                results.details{end+1} = sprintf('Position RMSE %.4f m exceeds threshold %.4f m', ...
+                    results.positionRMSE, posThreshold);
+            end
+            
+            if results.velocityRMSE > velThreshold
+                results.passed = false;
+                results.details{end+1} = sprintf('Velocity RMSE %.4f m/s exceeds threshold %.4f m/s', ...
+                    results.velocityRMSE, velThreshold);
+            end
+            
+            if results.positionR2 < R2Threshold
+                results.passed = false;
+                results.details{end+1} = sprintf('Position R² %.4f below threshold %.4f', ...
+                    results.positionR2, R2Threshold);
+            end
+            
+            fprintf('Model Accuracy: %s (Pos R²=%.3f, Vel R²=%.3f)\n', ...
+                tern(results.passed, 'PASSED', 'FAILED'), ...
+                results.positionR2, results.velocityR2);
+        end
+        
+        function results = validateTrajectory(simData, mechanism, varargin)
+            % Validates trajectory tracking performance
+            
+            results = struct();
+            results.testName = 'Trajectory Tracking';
+            results.passed = true;
+            results.details = {};
+            
+            % Check if desired trajectory is provided
+            if isfield(simData, 'desiredPosition')
+                % Calculate tracking error
+                trackingError = simData.position - simData.desiredPosition;
+                results.maxTrackingError = max(abs(trackingError));
+                results.rmsTrackingError = sqrt(mean(trackingError.^2));
+                
+                % Set thresholds
+                maxErrorThreshold = 0.01;  % 1 cm
+                rmsErrorThreshold = 0.005;  % 5 mm
+                
+                if results.maxTrackingError > maxErrorThreshold
+                    results.passed = false;
+                    results.details{end+1} = sprintf('Max tracking error %.4f m exceeds threshold %.4f m', ...
+                        results.maxTrackingError, maxErrorThreshold);
+                end
+                
+                if results.rmsTrackingError > rmsErrorThreshold
+                    results.passed = false;
+                    results.details{end+1} = sprintf('RMS tracking error %.4f m exceeds threshold %.4f m', ...
+                        results.rmsTrackingError, rmsErrorThreshold);
+                end
+            else
+                results.details{end+1} = 'No desired trajectory provided';
+            end
+            
+            fprintf('Trajectory Validation: %s\n', tern(results.passed, 'PASSED', 'FAILED'));
+        end
         
         function results = validateSafety(simData, mechanism, varargin)
-            % Validate mechanism safety limits
+            % Validates safety limits (position, velocity, current)
             
             results = struct();
-            results.mechanismName = mechanism.mechanismName;
-            results.allPassed = true;
+            results.testName = 'Safety Limits';
+            results.passed = true;
+            results.details = {};
             
-            fprintf('\n=== Safety Validation ===\n\n');
+            % Define safety limits
+            if isfield(mechanism, 'safetyLimits')
+                limits = mechanism.safetyLimits;
+            else
+                % Default safety limits
+                limits.maxPosition = 1.0;  % meters
+                limits.minPosition = -1.0;
+                limits.maxVelocity = 2.0;  % m/s
+                limits.maxCurrent = 10.0;  % Amps
+            end
             
-            % Position limits
-            if isfield(mechanism, 'minPosition_rad') && isfield(mechanism, 'maxPosition_rad')
-                minPos = min(simData.position);
+            % Check position limits
+            if isfield(limits, 'maxPosition')
                 maxPos = max(simData.position);
-                
-                posOk = minPos >= mechanism.minPosition_rad && ...
-                        maxPos <= mechanism.maxPosition_rad;
-                
-                results.position.min = minPos;
-                results.position.max = maxPos;
-                results.position.limit_min = mechanism.minPosition_rad;
-                results.position.limit_max = mechanism.maxPosition_rad;
-                results.position.passed = posOk;
-                
-                fprintf('Position Limits:\n');
-                fprintf('  Actual: [%.2f, %.2f] rad\n', minPos, maxPos);
-                fprintf('  Limits: [%.2f, %.2f] rad\n', ...
-                    mechanism.minPosition_rad, mechanism.maxPosition_rad);
-                fprintf('  Status: %s\n\n', BuiltinValidators.passFailStr(posOk));
-                
-                if ~posOk, results.allPassed = false; end
+                if maxPos > limits.maxPosition
+                    results.passed = false;
+                    results.details{end+1} = sprintf('Max position %.3f m exceeds limit %.3f m', ...
+                        maxPos, limits.maxPosition);
+                end
             end
             
-            % Velocity limits
-            if isfield(mechanism, 'maxVelocity_rad_s')
+            if isfield(limits, 'minPosition')
+                minPos = min(simData.position);
+                if minPos < limits.minPosition
+                    results.passed = false;
+                    results.details{end+1} = sprintf('Min position %.3f m below limit %.3f m', ...
+                        minPos, limits.minPosition);
+                end
+            end
+            
+            % Check velocity limits
+            if isfield(limits, 'maxVelocity')
                 maxVel = max(abs(simData.velocity));
-                velOk = maxVel <= mechanism.maxVelocity_rad_s * 1.05;
-                
-                results.velocity.max = maxVel;
-                results.velocity.limit = mechanism.maxVelocity_rad_s;
-                results.velocity.passed = velOk;
-                
-                fprintf('Velocity Limits:\n');
-                fprintf('  Actual: %.2f rad/s\n', maxVel);
-                fprintf('  Limit: %.2f rad/s\n', mechanism.maxVelocity_rad_s);
-                fprintf('  Status: %s\n\n', BuiltinValidators.passFailStr(velOk));
-                
-                if ~velOk, results.allPassed = false; end
+                if maxVel > limits.maxVelocity
+                    results.passed = false;
+                    results.details{end+1} = sprintf('Max velocity %.3f m/s exceeds limit %.3f m/s', ...
+                        maxVel, limits.maxVelocity);
+                end
             end
             
-            % Current limits
-            maxCurrent = max(abs(simData.current));
-            currentLimit = mechanism.motorModel.MAX_CONTINUOUS_CURRENT_A;
-            currentOk = maxCurrent <= currentLimit * 1.05;
-            
-            results.current.max = maxCurrent;
-            results.current.limit = currentLimit;
-            results.current.passed = currentOk;
-            
-            fprintf('Current Limits:\n');
-            fprintf('  Peak: %.1f A\n', maxCurrent);
-            fprintf('  Limit: %.0f A\n', currentLimit);
-            fprintf('  Status: %s\n\n', BuiltinValidators.passFailStr(currentOk));
-            
-            if ~currentOk, results.allPassed = false; end
-            
-            fprintf('========================================\n');
-            if results.allPassed
-                fprintf('OVERALL: ✓ SAFE - All limits respected\n');
-            else
-                fprintf('OVERALL: ✗ UNSAFE - Limits exceeded\n');
+            % Check current limits
+            if isfield(limits, 'maxCurrent') && isfield(simData, 'current')
+                maxCurrent = max(abs(simData.current));
+                if maxCurrent > limits.maxCurrent
+                    results.passed = false;
+                    results.details{end+1} = sprintf('Max current %.3f A exceeds limit %.3f A', ...
+                        maxCurrent, limits.maxCurrent);
+                end
             end
-            fprintf('========================================\n\n');
+            
+            fprintf('Safety Validation: %s\n', tern(results.passed, 'PASSED', 'FAILED'));
         end
         
-        % ===== HELPER =====
-        
-        function str = passFailStr(passed)
-            % Helper to format pass/fail
-            if passed
-                str = '✓ PASS';
-            else
-                str = '✗ FAIL';
-            end
-        end
+    end
+end
+
+function result = tern(condition, trueVal, falseVal)
+    % Ternary operator helper function
+    if condition
+        result = trueVal;
+    else
+        result = falseVal;
     end
 end

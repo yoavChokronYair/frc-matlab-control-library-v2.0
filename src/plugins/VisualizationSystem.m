@@ -11,10 +11,48 @@ classdef VisualizationSystem < handle
         PLUGIN_REGISTRY_FILE = 'visualization_plugins.mat'
     end
     
-    properties (Access = private, Static)
-        plugins = containers.Map()
-        validators = containers.Map()
-        reporters = containers.Map()
+    properties (Access = private)
+    end
+    
+    methods (Static, Access = private)
+        function map = getPlugins()
+            persistent plugins
+            if isempty(plugins)
+                plugins = containers.Map();
+            end
+            map = plugins;
+        end
+        
+        function setPlugins(map)
+            persistent plugins
+            plugins = map;
+        end
+        
+        function map = getValidators()
+            persistent validators
+            if isempty(validators)
+                validators = containers.Map();
+            end
+            map = validators;
+        end
+        
+        function setValidators(map)
+            persistent validators
+            validators = map;
+        end
+        
+        function map = getReporters()
+            persistent reporters
+            if isempty(reporters)
+                reporters = containers.Map();
+            end
+            map = reporters;
+        end
+        
+        function setReporters(map)
+            persistent reporters
+            reporters = map;
+        end
     end
     
     methods (Static)
@@ -38,7 +76,9 @@ classdef VisualizationSystem < handle
             pluginInfo.type = 'visualization';
             pluginInfo.registered = datetime('now');
             
-            VisualizationSystem.plugins(pluginName) = pluginInfo;
+            plugins = VisualizationSystem.getPlugins();
+            plugins(pluginName) = pluginInfo;
+            VisualizationSystem.setPlugins(plugins);
             fprintf('[VisualizationSystem] Registered visualization: %s\n', pluginName);
         end
         
@@ -61,7 +101,9 @@ classdef VisualizationSystem < handle
             validatorInfo.type = 'validator';
             validatorInfo.registered = datetime('now');
             
-            VisualizationSystem.validators(validatorName) = validatorInfo;
+            validators = VisualizationSystem.getValidators();
+            validators(validatorName) = validatorInfo;
+            VisualizationSystem.setValidators(validators);
             fprintf('[VisualizationSystem] Registered validator: %s\n', validatorName);
         end
         
@@ -83,7 +125,9 @@ classdef VisualizationSystem < handle
             reporterInfo.type = 'reporter';
             reporterInfo.registered = datetime('now');
             
-            VisualizationSystem.reporters(reporterName) = reporterInfo;
+            reporters = VisualizationSystem.getReporters();
+            reporters(reporterName) = reporterInfo;
+            VisualizationSystem.setReporters(reporters);
             fprintf('[VisualizationSystem] Registered reporter: %s\n', reporterName);
         end
         
@@ -91,23 +135,24 @@ classdef VisualizationSystem < handle
         
         function list = listVisualizations()
             % List all registered visualizations
-            list = keys(VisualizationSystem.plugins);
+            list = keys(VisualizationSystem.getPlugins());
         end
         
         function list = listValidators()
             % List all registered validators
-            list = keys(VisualizationSystem.validators);
+            list = keys(VisualizationSystem.getValidators());
         end
         
         function list = listReporters()
             % List all registered reporters
-            list = keys(VisualizationSystem.reporters);
+            list = keys(VisualizationSystem.getReporters());
         end
         
         function info = getVisualizationInfo(name)
             % Get info about a visualization
-            if VisualizationSystem.plugins.isKey(name)
-                info = VisualizationSystem.plugins(name);
+            plugins = VisualizationSystem.getPlugins();
+            if plugins.isKey(name)
+                info = plugins(name);
             else
                 error('Visualization "%s" not registered', name);
             end
@@ -115,8 +160,9 @@ classdef VisualizationSystem < handle
         
         function info = getValidatorInfo(name)
             % Get info about a validator
-            if VisualizationSystem.validators.isKey(name)
-                info = VisualizationSystem.validators(name);
+            validators = VisualizationSystem.getValidators();
+            if validators.isKey(name)
+                info = validators(name);
             else
                 error('Validator "%s" not registered', name);
             end
@@ -131,12 +177,13 @@ classdef VisualizationSystem < handle
             %   VisualizationSystem.runVisualization('myPlot', simData);
             %   VisualizationSystem.runVisualization('myPlot', simData, 'param1', value1);
             
-            if ~VisualizationSystem.plugins.isKey(pluginName)
+            plugins = VisualizationSystem.getPlugins();
+            if ~plugins.isKey(pluginName)
                 error('Visualization "%s" not registered. Available: %s', ...
                     pluginName, strjoin(VisualizationSystem.listVisualizations(), ', '));
             end
             
-            plugin = VisualizationSystem.plugins(pluginName);
+            plugin = plugins(pluginName);
             try
                 plugin.handle(simData, varargin{:});
             catch ME
@@ -153,12 +200,13 @@ classdef VisualizationSystem < handle
             %   results = VisualizationSystem.runValidator('myValidation', simData, mechanism, ...
             %       'param1', value1);
             
-            if ~VisualizationSystem.validators.isKey(validatorName)
+            validators = VisualizationSystem.getValidators();
+            if ~validators.isKey(validatorName)
                 error('Validator "%s" not registered. Available: %s', ...
                     validatorName, strjoin(VisualizationSystem.listValidators(), ', '));
             end
             
-            validator = VisualizationSystem.validators(validatorName);
+            validator = validators(validatorName);
             try
                 results = validator.handle(simData, mechanism, varargin{:});
             catch ME
@@ -174,12 +222,13 @@ classdef VisualizationSystem < handle
             %   report = VisualizationSystem.runReporter('myReport', results);
             %   report = VisualizationSystem.runReporter('myReport', results, 'param1', value1);
             
-            if ~VisualizationSystem.reporters.isKey(reporterName)
+            reporters = VisualizationSystem.getReporters();
+            if ~reporters.isKey(reporterName)
                 error('Reporter "%s" not registered. Available: %s', ...
                     reporterName, strjoin(VisualizationSystem.listReporters(), ', '));
             end
             
-            reporter = VisualizationSystem.reporters(reporterName);
+            reporter = reporters(reporterName);
             try
                 report = reporter.handle(results, varargin{:});
             catch ME
@@ -236,9 +285,9 @@ classdef VisualizationSystem < handle
                 filename = VisualizationSystem.PLUGIN_REGISTRY_FILE;
             end
             
-            plugins = VisualizationSystem.plugins;
-            validators = VisualizationSystem.validators;
-            reporters = VisualizationSystem.reporters;
+            plugins = VisualizationSystem.getPlugins();
+            validators = VisualizationSystem.getValidators();
+            reporters = VisualizationSystem.getReporters();
             
             save(filename, 'plugins', 'validators', 'reporters');
             fprintf('Plugin registry saved to: %s\n', filename);
@@ -253,9 +302,9 @@ classdef VisualizationSystem < handle
             
             if isfile(filename)
                 load(filename, 'plugins', 'validators', 'reporters');
-                VisualizationSystem.plugins = plugins;
-                VisualizationSystem.validators = validators;
-                VisualizationSystem.reporters = reporters;
+                VisualizationSystem.setPlugins(plugins);
+                VisualizationSystem.setValidators(validators);
+                VisualizationSystem.setReporters(reporters);
                 fprintf('Plugin registry loaded from: %s\n', filename);
             else
                 fprintf('Warning: Plugin registry file not found: %s\n', filename);
@@ -272,11 +321,15 @@ classdef VisualizationSystem < handle
             fprintf('Visualization Plugin Registry\n');
             fprintf('====================================\n\n');
             
+            plugins = VisualizationSystem.getPlugins();
+            validators = VisualizationSystem.getValidators();
+            reporters = VisualizationSystem.getReporters();
+            
             % Visualizations
-            if ~VisualizationSystem.plugins.isempty()
+            if ~plugins.isempty()
                 fprintf('VISUALIZATIONS:\n');
                 for name = VisualizationSystem.listVisualizations()
-                    info = VisualizationSystem.plugins(name{1});
+                    info = plugins(name{1});
                     fprintf('  • %s\n', name{1});
                     fprintf('    └─ %s\n', info.description);
                 end
@@ -286,10 +339,10 @@ classdef VisualizationSystem < handle
             end
             
             % Validators
-            if ~VisualizationSystem.validators.isempty()
+            if ~validators.isempty()
                 fprintf('VALIDATORS:\n');
                 for name = VisualizationSystem.listValidators()
-                    info = VisualizationSystem.validators(name{1});
+                    info = validators(name{1});
                     fprintf('  • %s\n', name{1});
                     fprintf('    └─ %s\n', info.description);
                 end
@@ -299,10 +352,10 @@ classdef VisualizationSystem < handle
             end
             
             % Reporters
-            if ~VisualizationSystem.reporters.isempty()
+            if ~reporters.isempty()
                 fprintf('REPORTERS:\n');
                 for name = VisualizationSystem.listReporters()
-                    info = VisualizationSystem.reporters(name{1});
+                    info = reporters(name{1});
                     fprintf('  • %s\n', name{1});
                     fprintf('    └─ %s\n', info.description);
                 end
@@ -316,9 +369,9 @@ classdef VisualizationSystem < handle
         
         function unregisterAll()
             % Clear all registered plugins (for testing/reset)
-            VisualizationSystem.plugins = containers.Map();
-            VisualizationSystem.validators = containers.Map();
-            VisualizationSystem.reporters = containers.Map();
+            VisualizationSystem.setPlugins(containers.Map());
+            VisualizationSystem.setValidators(containers.Map());
+            VisualizationSystem.setReporters(containers.Map());
             fprintf('[VisualizationSystem] All plugins unregistered\n');
         end
     end
